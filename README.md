@@ -2,7 +2,7 @@
 
 A private, offline-first baby sleep & feeding tracker — built as an installable PWA, synced in realtime between the parents' phones.
 
-Somni started life as a Claude artifact (a single self-contained HTML file) and grew into this standalone app. It is designed for **one household running its own instance**: you deploy it yourself, create exactly the accounts you need, and nobody else can ever see the data.
+Somni is designed for **one household running its own instance**: you deploy it yourself, create exactly the accounts you need, and nobody else can ever see the data.
 
 <p align="center">
   <img src="docs/home-light.png" width="250" alt="Home — live timeline, sleep projection, quick actions" />&nbsp;&nbsp;&nbsp;
@@ -18,8 +18,7 @@ Somni started life as a Claude artifact (a single self-contained HTML file) and 
 - **Trends screen** with day-by-day stats and a heatmap of sleep patterns
 - **Realtime sync**: log a feed on one phone, it appears on the other within a second
 - **Offline-first**: works without a connection, queues writes, reconciles on reconnect
-- **Installable PWA** with launcher shortcuts (long-press the icon to start a sleep or log a feed)
-- **Material 3 design** with automatic light/dark mode
+- **Installable PWA**: feels like a native smartphone app
 - **Import / export** of all data as JSON
 
 ## Private by design
