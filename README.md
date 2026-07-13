@@ -48,7 +48,7 @@ You need [Node.js](https://nodejs.org) 20.19+ (or 22.12+) and a free [Supabase](
 
 > [!TIP]
 > **Using Claude Code or another AI agent?** Ask your agent to follow the
-> [agent setup runbook](docs/agent-setup.md) — it walks an AI agent through the
+> [agent setup runbook](docs/agent-setup.md) — it walks through the
 > entire installation from clone to deploy, including the authentication steps
 > and their known pitfalls. The manual steps below cover the same ground.
 
