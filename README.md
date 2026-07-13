@@ -4,7 +4,11 @@ A private, offline-first baby sleep & feeding tracker — built as an installabl
 
 Somni started life as a Claude artifact (a single self-contained HTML file) and grew into this standalone app. It is designed for **one household running its own instance**: you deploy it yourself, create exactly the accounts you need, and nobody else can ever see the data.
 
-<!-- TODO: screenshot, e.g. ![Somni home screen](docs/screenshot.png) -->
+<p align="center">
+  <img src="docs/home-light.png" width="250" alt="Home — live timeline, sleep projection, quick actions" />&nbsp;&nbsp;&nbsp;
+  <img src="docs/trends-light.png" width="250" alt="Trends — 7-day stats and history" />&nbsp;&nbsp;&nbsp;
+  <img src="docs/home-dark.png" width="250" alt="Home screen in dark mode" />
+</p>
 
 ## Features
 
