@@ -1,0 +1,182 @@
+/* Somni base styles — layered on top of m3-svelte/etc/styles.css and the
+   generated theme.css. Edge-to-edge, native-app feel. */
+
+/* The package only exposes a "style" export condition, so this must be a
+   CSS @import (a JS import cannot resolve it). */
+@import "m3-svelte/etc/styles.css";
+
+/* m3-svelte expects the app to define its density function (processed at
+   build time by vite-plugin-functions-mixins). Identity = default density. */
+@function --m3-density(--height) {
+  result: var(--height);
+}
+
+html {
+  box-sizing: border-box;
+  height: 100%;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--m3c-surface);
+  color: var(--m3c-on-surface);
+  font-family: var(--m3-font, Roboto, system-ui, sans-serif);
+  font-size: 1rem;
+  line-height: 1.45;
+  min-height: 100dvh;
+  /* native-app feel: no rubber-band page bounce, no pull-to-refresh surprise */
+  overscroll-behavior-y: none;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+/* ---- app layout ---- */
+
+.app-content {
+  flex: 1;
+  width: 100%;
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 0.75rem 1rem;
+  /* clear the fixed bottom bars (action bar + nav bar + safe area) */
+  padding-bottom: calc(11rem + env(safe-area-inset-bottom, 0px));
+}
+
+.bottom-bars {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  background: var(--m3c-surface-container);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.bottom-bars > * {
+  max-width: 40rem;
+  margin: 0 auto;
+}
+
+/* ---- shared section styling (ported look from the prototype) ---- */
+
+.section-head {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--m3c-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin: 1rem 0 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ---- sheet form fields (shared by entry/import/export sheets) ---- */
+
+.sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  padding: 0.5rem 1.25rem 1.5rem;
+}
+
+.sheet-title {
+  font-size: 1.25rem;
+  font-weight: 500;
+  text-align: center;
+  margin: 0 0 0.25rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.field > span {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--m3c-on-surface-variant);
+}
+
+.field input,
+.field textarea {
+  padding: 0.8rem 1rem;
+  background: transparent;
+  border: 1px solid var(--m3c-outline);
+  border-radius: var(--m3-shape-small);
+  color: inherit;
+  font: inherit;
+  font-size: 1rem; /* >=16px prevents mobile input auto-zoom */
+  min-height: 3rem;
+  outline: none;
+}
+
+.field input:focus,
+.field textarea:focus {
+  border-color: var(--m3c-primary);
+  box-shadow: 0 0 0 1px var(--m3c-primary) inset;
+}
+
+.field-error {
+  min-height: 1.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--m3c-error);
+  text-align: center;
+  margin: 0;
+}
+
+.sheet-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.sheet-actions > :global(*) {
+  flex: 1;
+}
+
+/* ---- MD fade-through between screens (View Transitions API) ---- */
+
+::view-transition-old(root) {
+  animation: somni-fade-out 90ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+::view-transition-new(root) {
+  animation: somni-fade-in 210ms 90ms cubic-bezier(0, 0, 0.2, 1) both;
+}
+
+@keyframes somni-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes somni-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "devDependencies": {
+    "@ktibow/material-color-utilities-nightly": "^0.4.1772748028000",
+    "@sveltejs/vite-plugin-svelte": "^6.2.4",
+    "@tsconfig/svelte": "^5.0.8",
+    "svelte": "^5.56.4",
+    "svelte-check": "^4.7.2",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.6",
+    "vite-plugin-functions-mixins": "^0.4.1",
+    "vite-plugin-pwa": "^1.3.0",
+    "vitest": "^4.1.10"
+  },
+  "dependencies": {
+    "@ktibow/iconset-material-symbols": "^0.0.1764827375",
+    "@supabase/supabase-js": "^2.110.2",
+    "m3-svelte": "^7.2.0"
+  },
+  "name": "somni",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Somni - private baby sleep & feeding tracker PWA",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "gen:theme": "node scripts/gen-theme.mjs",
+    "gen:icons": "node scripts/gen-icons.mjs",
+    "verify:sync": "node scripts/verify-sync.mjs"
+  }
+}
