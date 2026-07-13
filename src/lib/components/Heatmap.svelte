@@ -114,7 +114,10 @@
     align-items: center;
     gap: 0.375rem;
     flex: 1;
-    min-width: 9rem;
+    /* Slider refuses to shrink below 10rem (m3 .m3-container min-inline-size),
+       so the true content floor is slider + gap + output. Anything smaller here
+       defeats flex-wrap and overflows the viewport on phones. */
+    min-width: calc(10rem + 0.375rem + 2rem);
     max-width: 14rem;
   }
   .slot-control output {
