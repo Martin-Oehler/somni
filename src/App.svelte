@@ -26,24 +26,6 @@
   let booted = $state(false);
   let syncStarted = false;
 
-  // TEMP debug probe
-  let debugText = $state("");
-  $effect(() => {
-    const t = setInterval(() => {
-      const widths: { w: number; d: string }[] = [];
-      for (const el of document.querySelectorAll("*")) {
-        if ((el as HTMLElement).closest(".somni-debug")) continue;
-        const r = el.getBoundingClientRect();
-        widths.push({ w: r.width, d: `${el.tagName}.${(el as HTMLElement).className}`.slice(0, 40) });
-      }
-      widths.sort((a, b) => b.w - a.w);
-      debugText =
-        `iw=${window.innerWidth} doc=${document.documentElement.scrollWidth} | ` +
-        widths.slice(0, 5).map((x) => `${Math.round(x.w)} ${x.d}`).join(" | ");
-    }, 700);
-    return () => clearInterval(t);
-  });
-
   $effect(() => {
     if (booted) return;
     booted = true;
@@ -101,7 +83,7 @@
   <div class="center-page">
     <LoadingIndicator aria-label="Loading" />
   </div>
-{:else if !auth.userEmail && false /* TEMP smoke-test bypass */}
+{:else if !auth.userEmail}
   <Login />
 {:else}
   <TopBar />
@@ -133,7 +115,6 @@
   <SheetHost />
 {/if}
 <Snackbar />
-<div class="somni-debug" style="position:fixed;top:0;left:0;z-index:9999;background:#c00;color:#fff;font-size:10px;padding:2px 4px;max-width:100vw;white-space:pre-wrap;">{debugText}</div>
 
 <style>
   .center-page {
