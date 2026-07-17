@@ -5,6 +5,7 @@ dev-dist/
 .env.local
 *.local
 .DS_Store
-.claude/
+.claude/*
+!.claude/skills/
 
 .vercel

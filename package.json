@@ -23,6 +23,7 @@
   "description": "Somni - private baby sleep & feeding tracker PWA",
   "scripts": {
     "dev": "vite",
+    "dev:local": "node scripts/dev-local.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
@@ -30,6 +31,10 @@
     "test:watch": "vitest",
     "gen:theme": "node scripts/gen-theme.mjs",
     "gen:icons": "node scripts/gen-icons.mjs",
-    "verify:sync": "node scripts/verify-sync.mjs"
+    "verify:sync": "node scripts/verify-sync.mjs",
+    "verify:local": "node scripts/verify-local.mjs",
+    "db:start": "npx supabase start",
+    "db:stop": "npx supabase stop",
+    "db:reset": "npx supabase db reset"
   }
 }

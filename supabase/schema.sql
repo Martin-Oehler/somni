@@ -57,6 +57,17 @@ create trigger shared_settings_updated_at before insert or update on public.shar
   for each row execute function public.set_updated_at();
 
 -- ============================================================
+-- Data API grants: newer Supabase projects no longer auto-expose
+-- tables to the API roles, so grant the household (authenticated)
+-- role explicit access. anon deliberately gets nothing — no grants
+-- plus RLS means anonymous requests are rejected outright.
+-- ============================================================
+grant usage on schema public to authenticated;
+grant select, insert, update, delete
+  on public.sessions, public.feedings, public.shared_settings
+  to authenticated;
+
+-- ============================================================
 -- Row Level Security: any authenticated user (signups are closed,
 -- so "authenticated" = the two household accounts), nobody else.
 -- ============================================================
