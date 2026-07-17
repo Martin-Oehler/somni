@@ -24,15 +24,42 @@ the build, login accounts for the household, and a passing `npm run verify:sync`
 - **The anon key is public by design** (RLS + closed signups protect the data), so
   reading or writing it to `.env` is fine. The `service_role` key and database
   password are real secrets and must never land in the repo or the chat.
-- The user must do two things themselves no matter what: authenticate you to each
-  platform once, and (recommended) create the login accounts so passwords stay out
-  of the conversation entirely.
+- The user must do three things themselves no matter what: have accounts at both
+  platforms (checked in step 0), authenticate you to each platform once, and
+  (recommended) create the login accounts so passwords stay out of the
+  conversation entirely.
 
-## Prerequisites
+## 0. Preflight — check these before doing anything else
 
-- Node.js 20.19+ or 22.12+ with `npx` (both CLIs run via `npx`, no global installs).
-- User has accounts at [supabase.com](https://supabase.com) and a static host
-  (this runbook uses [Vercel](https://vercel.com)).
+First verify the environment yourself:
+
+```sh
+git --version
+node --version    # needs 20.19+ or 22.12+ (Vite requirement; npx comes with it)
+curl --version    # the Supabase steps drive the management API with curl
+```
+
+Both CLIs run via `npx`, no global installs. The shell snippets in this runbook
+are written for a POSIX shell for brevity — treat them as reference, not
+copy-paste: adapt `export`, loops, `/tmp` paths, and redirections to whatever
+shell you are actually running in. The intent of each step is what matters.
+
+Then confirm with the user, in **one** batched question:
+
+1. **Do they have a Supabase account** ([supabase.com](https://supabase.com))?
+   You cannot sign up for them (email verification). The free tier works but
+   allows only **two active projects** — if both slots are used, they must pause
+   or delete one, or step 3 fails with a quota error.
+2. **Do they have an account at the static host** (this runbook uses
+   [Vercel](https://vercel.com))? Same: only they can create it.
+3. **Are they available for the interactive moments?** The setup needs them in a
+   browser several times: creating the access token (step 2), creating the
+   household login accounts in the dashboard (step 5), approving the Vercel
+   device login and testing the preview (step 7).
+4. **Which email addresses** should become the household login accounts (step 5)?
+
+If an account is missing, stop and let them create it before continuing —
+nothing below works without both.
 
 ## 1. Clone, install, sanity-check
 
