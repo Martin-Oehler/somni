@@ -46,6 +46,12 @@ A verification script ([scripts/verify-sync.mjs](scripts/verify-sync.mjs)) check
 
 You need [Node.js](https://nodejs.org) 20.19+ (or 22.12+) and a free [Supabase](https://supabase.com) account.
 
+> [!TIP]
+> **Using Claude Code or another AI agent?** Ask your agent to follow the
+> [agent setup runbook](docs/agent-setup.md) — it walks through the
+> entire installation from clone to deploy, including the authentication steps
+> and their known pitfalls. The manual steps below cover the same ground.
+
 ### 1. Create the Supabase project
 
 1. Create a new project at [supabase.com/dashboard](https://supabase.com/dashboard).
