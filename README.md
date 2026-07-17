@@ -99,6 +99,23 @@ This verifies that anonymous requests return zero rows (RLS), that signup attemp
 SOMNI_TEST_EMAIL=you@example.com SOMNI_TEST_PASSWORD=... npm run verify:sync
 ```
 
+### 4. Develop against a throwaway database (optional)
+
+For feature work you don't need (and shouldn't use) the production project. With
+[Docker](https://www.docker.com/products/docker-desktop/) running:
+
+```sh
+npm run verify:local   # spins up a local Supabase stack, seeds the schema, runs all checks
+npm run dev:local      # dev server against the local stack (login: test@somni.local / somni-local-test)
+npm run db:reset       # wipe local data and re-apply supabase/schema.sql
+npm run db:stop        # shut the stack down
+```
+
+`verify:local` never reads `.env` — it targets `http://127.0.0.1:54321` with the
+local development keys and a local-only test login, so production data is never
+touched. AI agents working on this repo self-verify this way on feature branches
+via the project's verify skill ([.claude/skills/verify/SKILL.md](.claude/skills/verify/SKILL.md)).
+
 ## Deployment
 
 `npm run build` produces a fully static site in `dist/` — any static host works. Two things to know:
