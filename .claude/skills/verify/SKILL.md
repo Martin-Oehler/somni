@@ -43,6 +43,48 @@ Runs the Vite dev server wired to the local stack
 URL/key as process env, which overrides `.env` — never edit `.env` for this).
 Log in with the test login above.
 
+## Testing the UI yourself in a headless browser
+
+For UI-affecting changes, don't stop at unit tests — drive the app in a real
+browser and look at it. Playwright is a devDependency and
+[scripts/browser.mjs](../../../scripts/browser.mjs) does the boilerplate:
+
+1. Start `npm run dev:local` **in the background** (app at
+   `http://localhost:5173`). Kill it when you're done.
+2. Write a throwaway script **in the repo root** (so `playwright` resolves
+   from `node_modules`) and delete it afterwards:
+
+   ```js
+   import { openApp } from "./scripts/browser.mjs";
+
+   const { browser, page, errors } = await openApp();
+   try {
+     await page.getByRole("button", { name: "Start sleep" }).click();
+     await page.screenshot({ path: "C:/path/to/scratchpad/home.png" });
+   } finally {
+     await browser.close(); // always — a leaked browser blocks later runs
+   }
+   console.log("console errors:", errors);
+   ```
+
+   `openApp()` opens a fresh 420×860 (portrait phone) page, logs in as the
+   test user, and waits for the home screen ("Today's timeline"). Pass
+   `{ login: false }` to test the login screen itself.
+3. **Read the screenshots** you took — you can view images, so actually check
+   that the UI looks right instead of only asserting on selectors.
+4. Check `errors` (collected `console.error` + page errors) — it should be
+   empty after every interaction.
+
+Notes:
+
+- If chromium is missing (fresh Playwright version), the launch error tells
+  you the fix: `npx playwright install chromium` (one-time, ~100 MB).
+- Browser interactions write real rows to the local DB. That's the point —
+  but run `npm run db:reset` if you need a clean slate for a repeatable check.
+- Useful stable anchors: labels `Email`/`Password`, buttons `Sign in`,
+  `Start sleep`/`End sleep`, `Fed now`, `Log earlier sleep`/`Log earlier feed`,
+  text `Today's timeline`, nav `Home`/`Trends`/`Settings`.
+
 ## Local stack lifecycle
 
 ```sh
