@@ -46,9 +46,10 @@
   .feed-scope {
     display: contents;
   }
-  /* Feed actions live on the tertiary (feed pink) role */
-  .feed-scope :global(button) {
-    background-color: var(--m3c-tertiary-container);
-    color: var(--m3c-on-tertiary-container);
+  /* Feed actions live on the tertiary (feed) role.
+     !important beats m3-svelte's own .tonal rule, which otherwise wins on specificity. */
+  .feed-scope :global(button.tonal) {
+    background-color: var(--m3c-tertiary-container) !important;
+    color: var(--m3c-on-tertiary-container) !important;
   }
 </style>
