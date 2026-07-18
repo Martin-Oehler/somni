@@ -22,6 +22,14 @@ class UiStore {
   screen = $state<Screen>("home");
   sheet = $state<SheetState>(null);
 
+  // The entry currently being edited in a sheet, for highlighting it in
+  // timelines and lists ("you always see what you're editing").
+  get editingEntryId(): string | null {
+    return this.sheet && (this.sheet.kind === "sleep" || this.sheet.kind === "feed")
+      ? this.sheet.editId
+      : null;
+  }
+
   start(): void {
     this.screen = screenFromHash();
     window.addEventListener("hashchange", () => {

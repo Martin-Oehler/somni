@@ -5,6 +5,7 @@
   import { saveFeed, deleteFeeding } from "../../actions";
   import { validateFeed } from "../../validate";
   import { nowMaxISO, toLocalISO } from "../../time";
+  import GlanceHeader from "./GlanceHeader.svelte";
 
   let { editId }: { editId: string | null } = $props();
 
@@ -30,13 +31,14 @@
 </script>
 
 <div class="sheet-body">
-  <h2 class="sheet-title">{editId ? "Edit feeding" : "Log earlier feeding"}</h2>
   {#if editId && !existing}
+    <h2 class="sheet-title">Edit feeding</h2>
     <p class="field-error">That feeding no longer exists.</p>
     <div class="sheet-actions">
       <Button variant="tonal" onclick={() => ui.closeSheet()}>Close</Button>
     </div>
   {:else}
+    <GlanceHeader kind="feed" start={parse(tsVal)} isNew={!editId} {error} />
     <label class="field">
       <span>Time</span>
       <input type="datetime-local" bind:value={tsVal} max={nowMaxISO()} />

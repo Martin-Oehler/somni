@@ -5,6 +5,7 @@
   import { saveSleep, deleteSession } from "../../actions";
   import { validateSleep } from "../../validate";
   import { nowMaxISO, toLocalISO } from "../../time";
+  import GlanceHeader from "./GlanceHeader.svelte";
 
   let { editId }: { editId: string | null } = $props();
 
@@ -31,13 +32,14 @@
 </script>
 
 <div class="sheet-body">
-  <h2 class="sheet-title">{editId ? "Edit sleep" : "Log earlier sleep"}</h2>
   {#if editId && !existing}
+    <h2 class="sheet-title">Edit sleep</h2>
     <p class="field-error">That session no longer exists.</p>
     <div class="sheet-actions">
       <Button variant="tonal" onclick={() => ui.closeSheet()}>Close</Button>
     </div>
   {:else}
+    <GlanceHeader kind="sleep" start={parse(startVal)} end={parse(endVal)} isNew={!editId} {error} />
     <label class="field">
       <span>Start time</span>
       <input type="datetime-local" bind:value={startVal} max={nowMaxISO()} />
