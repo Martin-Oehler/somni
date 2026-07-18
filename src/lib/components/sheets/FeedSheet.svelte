@@ -25,8 +25,8 @@
   };
   const remove = () => {
     if (!editId) return;
-    ui.closeSheet();
     deleteFeeding(editId);
+    ui.closeSheet();
   };
 </script>
 

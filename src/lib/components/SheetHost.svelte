@@ -9,16 +9,17 @@
 </script>
 
 {#if ui.sheet}
+  {@const sheet = ui.sheet}
   <BottomSheet close={() => ui.closeSheet()}>
-    {#if ui.sheet.kind === "sleep"}
-      <SleepSheet editId={ui.sheet.editId} />
-    {:else if ui.sheet.kind === "feed"}
-      <FeedSheet editId={ui.sheet.editId} />
-    {:else if ui.sheet.kind === "sync"}
+    {#if sheet.kind === "sleep"}
+      <SleepSheet editId={sheet.editId} />
+    {:else if sheet.kind === "feed"}
+      <FeedSheet editId={sheet.editId} />
+    {:else if sheet.kind === "sync"}
       <SyncSheet />
-    {:else if ui.sheet.kind === "export"}
+    {:else if sheet.kind === "export"}
       <ExportSheet />
-    {:else if ui.sheet.kind === "import"}
+    {:else if sheet.kind === "import"}
       <ImportSheet />
     {/if}
   </BottomSheet>
