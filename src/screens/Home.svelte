@@ -35,6 +35,7 @@
   feedings={todayFeedings}
   {projections}
   onSelect={(kind, id) => ui.openSheet({ kind, editId: id })}
+  selectedId={ui.editingEntryId}
 />
 
 <div class="manual-actions">

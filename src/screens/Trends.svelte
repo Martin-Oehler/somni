@@ -44,6 +44,7 @@
             feedings={day.feedings}
             mini
             onSelect={(kind, id) => ui.openSheet({ kind, editId: id })}
+            selectedId={ui.editingEntryId}
           />
         </div>
         <div class="history-stats">

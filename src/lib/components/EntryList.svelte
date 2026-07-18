@@ -103,6 +103,7 @@
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
           class="log-content"
+          class:selected={entry.id === ui.editingEntryId}
           class:dragging={draggingId === entry.id}
           style:transform={rowTransform(entry.id)}
           ontouchstart={(e) => touchStart(e, entry.id)}
@@ -172,6 +173,20 @@
   }
   .log-content.dragging {
     transition: none;
+  }
+  /* Hover preview, mouse only. */
+  @media (hover: hover) and (pointer: fine) {
+    .log-content:hover {
+      background: var(--m3c-surface-container-high);
+    }
+  }
+  /* Entry whose sheet is open. */
+  .log-content.selected {
+    background: var(--m3c-secondary-container);
+    color: var(--m3c-on-secondary-container);
+  }
+  .log-content.selected .log-sub {
+    color: var(--m3c-on-secondary-container);
   }
   .log-icon {
     display: flex;

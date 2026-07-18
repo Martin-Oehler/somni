@@ -11,6 +11,7 @@
     projections = null,
     mini = false,
     onSelect = null,
+    selectedId = null,
   }: {
     bounds: DayBounds;
     sessions: Session[];
@@ -18,6 +19,7 @@
     projections?: Projection[] | null;
     mini?: boolean;
     onSelect?: ((kind: EntryKind, id: string) => void) | null;
+    selectedId?: string | null;
   } = $props();
 
   const span = $derived(bounds.end - bounds.start);
@@ -120,6 +122,7 @@
           type="button"
           class="tl-block"
           class:active={b.active}
+          class:selected={b.id === selectedId}
           style:left="{b.left}%"
           style:width="{b.width}%"
           aria-label={b.aria}
@@ -136,6 +139,7 @@
         <button
           type="button"
           class="tl-feed"
+          class:selected={f.id === selectedId}
           style:left="{f.left}%"
           aria-label={f.aria}
           onclick={() => onSelect?.("feed", f.id)}
@@ -227,6 +231,30 @@
   .tl-block:focus-visible {
     outline: 2px solid var(--m3c-primary);
     outline-offset: 1px;
+  }
+  /* Hover preview, mouse only — touch devices get no stale hover state. */
+  @media (hover: hover) and (pointer: fine) {
+    .tl-block:not(.static):not(.projection):hover {
+      filter: brightness(1.12);
+    }
+    .tl-feed:not(.static):hover {
+      filter: brightness(1.15);
+      transform: translate(-50%, -50%) scale(1.25);
+    }
+  }
+  /* Entry whose sheet is open. The sheet's <dialog> backdrop sits in the
+     browser top layer, so nothing can be lifted above it — brightness +
+     ring keep the entry readable through the dimming instead. */
+  .tl-block.selected {
+    outline: 2px solid var(--m3c-primary);
+    outline-offset: 1px;
+    filter: brightness(1.2);
+    z-index: 2;
+  }
+  .tl-feed.selected {
+    outline: 2px solid var(--m3c-tertiary);
+    outline-offset: 2px;
+    filter: brightness(1.2);
   }
   .tl-block.active {
     background: linear-gradient(90deg, var(--m3c-primary), var(--m3c-primary-container));
