@@ -2,6 +2,7 @@
   import { data } from "../lib/stores/data.svelte";
   import { settings } from "../lib/stores/settings.svelte";
   import { clock } from "../lib/stores/clock.svelte";
+  import { ui } from "../lib/stores/ui.svelte";
   import { boundsForDay, fmtDur } from "../lib/time";
   import { computeHistory, computeSummary } from "../lib/stats";
   import SummaryCards from "../lib/components/SummaryCards.svelte";
@@ -37,7 +38,13 @@
           {label.date}
         </div>
         <div class="history-tl">
-          <Timeline bounds={day.bounds} sessions={day.sessions} feedings={day.feedings} mini />
+          <Timeline
+            bounds={day.bounds}
+            sessions={day.sessions}
+            feedings={day.feedings}
+            mini
+            onSelect={(kind, id) => ui.openSheet({ kind, editId: id })}
+          />
         </div>
         <div class="history-stats">
           <strong>{fmtDur(day.totalSleep)}</strong>
