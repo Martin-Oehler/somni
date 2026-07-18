@@ -26,8 +26,8 @@
   };
   const remove = () => {
     if (!editId) return;
-    ui.closeSheet();
     deleteSession(editId);
+    ui.closeSheet();
   };
 </script>
 
