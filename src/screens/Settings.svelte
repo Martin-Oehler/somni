@@ -5,31 +5,50 @@
   import iconSync from "@ktibow/iconset-material-symbols/sync-rounded";
   import iconLogout from "@ktibow/iconset-material-symbols/logout-rounded";
   import { settings } from "../lib/stores/settings.svelte";
+  import { clock } from "../lib/stores/clock.svelte";
   import { auth, logout } from "../lib/stores/auth.svelte";
   import { ui } from "../lib/stores/ui.svelte";
-  import { updateSharedSettings, updateColorScheme } from "../lib/actions";
+  import { updateSharedSettings, updateColorScheme, toggleIrregularToday } from "../lib/actions";
   import { clampInt } from "../lib/time";
+  import { civilDate } from "../lib/entrainment/math";
   import type { ColorScheme } from "../lib/types";
 
-  // Local field state so typing doesn't sync half-finished numbers; committed
-  // on change/blur, clamped like the prototype.
-  let napVal = $state(String(settings.shared.targetNapMins));
-  let cycleVal = $state(String(settings.shared.cycleTimeMins));
+  const STRICTNESS_LABELS = ["Flexible", "Relaxed", "Balanced", "Firm", "Strict"];
+
+  const minsToTime = (mins: number): string =>
+    `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
+
+  // Local field state so typing doesn't sync half-finished values.
   let dayStartVal = $state(String(settings.shared.dayStart));
+  let birthdateVal = $state(settings.shared.birthdate ?? "");
+  let bedtimeVal = $state(minsToTime(settings.shared.bedtimeMins));
 
   // Keep fields in step with remote settings updates.
   $effect(() => {
-    napVal = String(settings.shared.targetNapMins);
-    cycleVal = String(settings.shared.cycleTimeMins);
     dayStartVal = String(settings.shared.dayStart);
+    birthdateVal = settings.shared.birthdate ?? "";
+    bedtimeVal = minsToTime(settings.shared.bedtimeMins);
   });
 
-  const commit = () => {
-    updateSharedSettings({
-      targetNapMins: clampInt(napVal, 15, 360, settings.shared.targetNapMins),
-      cycleTimeMins: clampInt(cycleVal, 30, 720, settings.shared.cycleTimeMins),
-      dayStart: clampInt(dayStartVal, 0, 23, settings.shared.dayStart),
-    });
+  const todayKey = $derived(civilDate(clock.now));
+  const todayIrregular = $derived(settings.shared.irregularDays.includes(todayKey));
+
+  const commitDayStart = () => {
+    updateSharedSettings({ dayStart: clampInt(dayStartVal, 0, 23, settings.shared.dayStart) });
+  };
+  const commitBirthdate = () => {
+    const t = Date.parse(birthdateVal);
+    const valid = birthdateVal && Number.isFinite(t) && t <= Date.now();
+    updateSharedSettings({ birthdate: valid ? birthdateVal : null });
+  };
+  const commitBedtime = () => {
+    const [h, m] = bedtimeVal.split(":").map(Number);
+    if (Number.isFinite(h) && Number.isFinite(m)) {
+      updateSharedSettings({ bedtimeMins: clampInt(h * 60 + m, 960, 1380, settings.shared.bedtimeMins) });
+    }
+  };
+  const commitStrictness = (e: Event) => {
+    updateSharedSettings({ strictness: clampInt((e.currentTarget as HTMLInputElement).value, 0, 4, settings.shared.strictness) });
   };
 
   const schemeOptions = [
@@ -39,19 +58,47 @@
   ];
 </script>
 
+<div class="section-head">Baby</div>
+<div class="card">
+  <label class="pref-row">
+    <span>Birthdate <small>tunes age-appropriate rhythms</small></span>
+    <input type="date" bind:value={birthdateVal} max={civilDate(clock.now)} onchange={commitBirthdate} />
+  </label>
+</div>
+
+<div class="section-head">Plan</div>
+<div class="card">
+  <label class="pref-row">
+    <span>Bedtime target</span>
+    <input type="time" bind:value={bedtimeVal} onchange={commitBedtime} />
+  </label>
+  <div class="pref-row column">
+    <div class="strictness-head">
+      <span>Bedtime strictness</span>
+      <span class="strictness-value">{STRICTNESS_LABELS[settings.shared.strictness] ?? "Balanced"}</span>
+    </div>
+    <input
+      type="range"
+      min="0"
+      max="4"
+      step="1"
+      value={settings.shared.strictness}
+      oninput={commitStrictness}
+      aria-label="Bedtime strictness"
+    />
+    <div class="strictness-ends"><span>Flexible</span><span>Strict</span></div>
+  </div>
+  <label class="pref-row toggle">
+    <span>Today was unusual <small>excludes today from learning</small></span>
+    <input type="checkbox" checked={todayIrregular} onchange={() => toggleIrregularToday(todayKey)} />
+  </label>
+</div>
+
 <div class="section-head">Preferences</div>
 <div class="card">
   <label class="pref-row">
-    <span>Target nap <small>minutes</small></span>
-    <input type="number" min="15" max="360" bind:value={napVal} onchange={commit} />
-  </label>
-  <label class="pref-row">
-    <span>Sleep–wake cycle <small>minutes</small></span>
-    <input type="number" min="30" max="720" bind:value={cycleVal} onchange={commit} />
-  </label>
-  <label class="pref-row">
     <span>Day starts at <small>hour, 0–23</small></span>
-    <input type="number" min="0" max="23" bind:value={dayStartVal} onchange={commit} />
+    <input type="number" min="0" max="23" bind:value={dayStartVal} onchange={commitDayStart} />
   </label>
   <div class="pref-row">
     <span>Color scheme <small>this device only</small></span>
@@ -142,6 +189,36 @@
   }
   .pref-row input:focus {
     border-color: var(--m3c-primary);
+  }
+  .pref-row input[type="checkbox"] {
+    width: 1.25rem;
+    min-height: 1.25rem;
+    accent-color: var(--m3c-primary);
+  }
+  .pref-row.column {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+  .pref-row.column input[type="range"] {
+    width: 100%;
+    accent-color: var(--m3c-primary);
+  }
+  .strictness-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .strictness-value {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--m3c-primary);
+  }
+  .strictness-ends {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.7rem;
+    color: var(--m3c-on-surface-variant);
   }
   .account {
     display: flex;

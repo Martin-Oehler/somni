@@ -66,14 +66,27 @@ export const logFeedNow = (): void => {
 
 // ---- manual entry / edit (validation happens in the sheet) ----
 
-export const saveSleep = (start: number, end: number | null, editId: string | null): void => {
+export const saveSleep = (
+  start: number,
+  end: number | null,
+  editId: string | null,
+  settleMins?: number | null,
+): void => {
   if (editId) {
     const existing = data.sessions.find((s) => s.id === editId);
     if (!existing) return;
-    pushSession({ ...existing, start, end });
+    pushSession({ ...existing, start, end, settleMins: settleMins ?? existing.settleMins ?? null });
   } else {
-    pushSession({ id: uid(), start, end });
+    pushSession({ id: uid(), start, end, settleMins: settleMins ?? null });
   }
+};
+
+// Settling-time annotation (SleepSheet chip row): strong latency evidence for
+// the W(t) learner. null = "quick", the censored-normal default.
+export const setSettleMins = (id: string, settleMins: number | null): void => {
+  const existing = data.sessions.find((s) => s.id === id);
+  if (!existing) return;
+  pushSession({ ...existing, settleMins });
 };
 
 export const saveFeed = (ts: number, editId: string | null): void => {
@@ -112,6 +125,15 @@ export const updateSharedSettings = (patch: Partial<SharedSettings>): void => {
   settings.shared = { ...settings.shared, ...patch };
   saveLocalSettings(settings.shared);
   outbox.enqueue({ op: "upsert", table: "shared_settings", rowId: "1", row: { ...settings.shared } });
+};
+
+// Mark (or unmark) today as an irregular day — kept in the log but excluded
+// from all rolling estimators, so a one-off disrupted day doesn't skew learning.
+export const toggleIrregularToday = (dayKey: string): void => {
+  const set = new Set(settings.shared.irregularDays);
+  if (set.has(dayKey)) set.delete(dayKey);
+  else set.add(dayKey);
+  updateSharedSettings({ irregularDays: [...set].sort() });
 };
 
 export const updateColorScheme = (scheme: ColorScheme): void => {

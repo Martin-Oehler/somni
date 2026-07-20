@@ -18,11 +18,15 @@ const migrateSession = (s: unknown): Session | null => {
   const r = s as Record<string, unknown>;
   if (!Number.isFinite(r.start)) return null;
   const start = r.start as number;
-  return {
+  const out: Session = {
     id: typeof r.id === "string" && r.id ? r.id : `s_${start}`,
     start,
     end: Number.isFinite(r.end) ? (r.end as number) : null,
   };
+  if (Number.isFinite(r.settleMins)) {
+    out.settleMins = Math.min(180, Math.max(0, Math.round(r.settleMins as number)));
+  }
+  return out;
 };
 
 const migrateFeeding = (f: unknown): Feeding | null => {
@@ -173,7 +177,7 @@ export const sanitizeImport = async (
 
 // ---- export ----
 
-export const buildExport = (data: TrackerData, portableSettings: Record<string, number>): string =>
+export const buildExport = (data: TrackerData, portableSettings: Record<string, unknown>): string =>
   JSON.stringify(
     {
       version: DATA_VERSION,

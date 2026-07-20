@@ -31,7 +31,7 @@ export const reconcile = async (reason: string): Promise<void> => {
   sync.lastAttempt = Date.now();
   try {
     const [sess, feeds, sharedRow] = await Promise.all([
-      supabase.from("sessions").select("id,start_ts,end_ts").is("deleted_at", null).limit(50000),
+      supabase.from("sessions").select("id,start_ts,end_ts,settle_mins").is("deleted_at", null).limit(50000),
       supabase.from("feedings").select("id,ts").is("deleted_at", null).limit(50000),
       supabase.from("shared_settings").select("value").eq("id", 1).maybeSingle(),
     ]);

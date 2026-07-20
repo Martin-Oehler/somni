@@ -1,41 +1,57 @@
 <script lang="ts">
   import { data } from "../stores/data.svelte";
-  import { settings } from "../stores/settings.svelte";
   import { clock } from "../stores/clock.svelte";
-  import { ACTIVE_CAP_MS, MIN_MS, fmtDur, fmtTime } from "../time";
+  import { plan } from "../stores/plan.svelte";
+  import { ACTIVE_CAP_MS, fmtDur, fmtTime } from "../time";
 
   const active = $derived(data.activeSession);
-  const targetMs = $derived(settings.shared.targetNapMins * MIN_MS);
 
   const view = $derived.by(() => {
     const now = clock.now;
+    const p = plan.plan;
+
     if (active) {
       const dur = now - active.start;
-      const wakeTs = active.start + targetMs;
+      // The plan's current-nap row carries the cap-aware projected wake.
+      const currentNap = p.naps.find((n) => n.current);
+      let sub = `Started ${fmtTime(active.start)}`;
+      if (currentNap) {
+        const wakeTs = currentNap.end;
+        if (now < wakeTs) {
+          sub = `Wake around ${fmtTime(wakeTs)} (in ${fmtDur(wakeTs - now)})`;
+        } else {
+          sub = `Past planned wake by ${fmtDur(now - wakeTs)}`;
+        }
+        if (currentNap.capped) sub += " · capped for bedtime";
+      }
       return {
         state: "sleeping" as const,
         label: "Sleeping for",
         value: fmtDur(dur),
-        sub:
-          dur < targetMs
-            ? `Target wake ${fmtTime(wakeTs)} (in ${fmtDur(wakeTs - now)})`
-            : `Past nap target by ${fmtDur(now - wakeTs)}`,
+        sub,
         warn: dur > ACTIVE_CAP_MS ? `Over ${fmtDur(ACTIVE_CAP_MS)} — forgot to end this sleep?` : null,
       };
     }
+
     const completed = data.sessions
       .filter((s): s is typeof s & { end: number } => s.end !== null)
       .sort((a, b) => b.end - a.end);
-    if (completed.length) {
-      return {
-        state: "awake" as const,
-        label: "Awake for",
-        value: fmtDur(now - completed[0].end),
-        sub: `Last sleep ended ${fmtTime(completed[0].end)}`,
-        warn: null,
-      };
+    const awakeFor = completed.length ? `Awake for` : "Awake";
+    const value = completed.length ? fmtDur(now - completed[0].end) : "—";
+
+    // Next-nap guidance from the plan.
+    const nextNap = p.naps.find((n) => !n.current);
+    let sub = completed.length ? `Last sleep ended ${fmtTime(completed[0].end)}` : "";
+    let warn: string | null = null;
+    if (p.phase === "night") {
+      sub = `Winding down · expected night ~${fmtDur(p.expectedNightMin * 60_000)}`;
+    } else if (nextNap && p.nextWindow) {
+      sub = `Next nap ~${fmtTime(nextNap.start)} · window ${fmtTime(p.nextWindow.earliest)}–${fmtTime(p.nextWindow.latest)}`;
+      if (now > p.nextWindow.latest) warn = "Past the comfortable window — sleep soon";
+    } else if (p.phase === "day" && p.showBedtime && p.bedtime !== null) {
+      sub = `No more naps · bedtime ~${fmtTime(p.bedtime)}`;
     }
-    return { state: "awake" as const, label: "Awake", value: "—", sub: "", warn: null };
+    return { state: "awake" as const, label: awakeFor, value, sub, warn };
   });
 </script>
 
