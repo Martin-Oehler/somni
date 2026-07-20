@@ -4,11 +4,12 @@
   import { data } from "../lib/stores/data.svelte";
   import { settings } from "../lib/stores/settings.svelte";
   import { clock } from "../lib/stores/clock.svelte";
+  import { plan } from "../lib/stores/plan.svelte";
   import { ui } from "../lib/stores/ui.svelte";
   import { boundsForDay } from "../lib/time";
-  import { buildProjections } from "../lib/projection";
   import HeroCard from "../lib/components/HeroCard.svelte";
-  import StatCards from "../lib/components/StatCards.svelte";
+  import PlanCard from "../lib/components/PlanCard.svelte";
+  import AnchorStrip from "../lib/components/AnchorStrip.svelte";
   import Timeline from "../lib/components/Timeline.svelte";
   import EntryList from "../lib/components/EntryList.svelte";
 
@@ -17,26 +18,29 @@
     data.sessions.filter((s) => (s.end ?? clock.now) > today.start && s.start < today.end),
   );
   const todayFeedings = $derived(data.feedings.filter((f) => f.ts >= today.start && f.ts < today.end));
-  const projections = $derived(buildProjections(data.sessions, settings.shared, today, clock.now));
 </script>
 
 <HeroCard />
-<StatCards {today} {todaySessions} />
+<PlanCard />
 
 <div class="section-head">Today's timeline</div>
 <div class="legend">
   <span class="legend-item"><span class="swatch sleep"></span> Sleep</span>
-  <span class="legend-item"><span class="swatch projection"></span> Projected</span>
+  <span class="legend-item"><span class="swatch projection"></span> Planned</span>
+  <span class="legend-item"><span class="moon">☾</span> Bedtime</span>
   <span class="legend-item"><span class="dot"></span> Feed</span>
 </div>
 <Timeline
   bounds={today}
   sessions={todaySessions}
   feedings={todayFeedings}
-  {projections}
+  planned={plan.plannedBlocks}
+  bedtimeWarn={!plan.plan.bedtimeFeasible}
   onSelect={(kind, id) => ui.openSheet({ kind, editId: id })}
   selectedId={ui.editingEntryId}
 />
+
+<AnchorStrip />
 
 <div class="manual-actions">
   <Button variant="outlined" size="s" iconType="left" onclick={() => ui.openSheet({ kind: "sleep", editId: null })}>
@@ -75,6 +79,10 @@
   .swatch.projection {
     background: transparent;
     border: 1.5px dashed var(--m3c-primary);
+  }
+  .legend .moon {
+    font-size: 0.8rem;
+    color: var(--m3c-primary);
   }
   .dot {
     width: 9px;

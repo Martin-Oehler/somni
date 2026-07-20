@@ -9,3 +9,6 @@ dev-dist/
 !.claude/skills/
 
 .vercel
+
+# Personal data exports (never commit real child data)
+somni-export-*.json

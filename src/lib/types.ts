@@ -7,6 +7,9 @@ export interface Session {
   id: string;
   start: number;
   end: number | null; // null = actively sleeping
+  // How long the child took to settle into this sleep, in minutes.
+  // null/undefined = not annotated (treated as a quick settle, censored ≤20).
+  settleMins?: number | null;
 }
 
 export interface Feeding {
@@ -20,9 +23,22 @@ export interface TrackerData {
 }
 
 export interface SharedSettings {
+  // Legacy fixed-cycle fields: kept for back-compat with old exports and
+  // un-updated devices, no longer surfaced in the UI.
   targetNapMins: number;
   cycleTimeMins: number;
   dayStart: number; // hour 0-23 the tracking day starts at
+  birthdate: string | null; // "YYYY-MM-DD"; null = not set (neutral age prior)
+  bedtimeMins: number; // bedtime target, minutes after midnight (local)
+  strictness: number; // 0 (flexible) … 4 (strict) bedtime weighting
+  irregularDays: string[]; // dayKeys excluded from learning, pruned to ~8 weeks
+}
+
+// A planned (not yet realized) block on the timeline.
+export interface PlannedBlock {
+  start: number;
+  end: number;
+  kind: "nap" | "bedtime";
 }
 
 export type ColorScheme = "system" | "light" | "dark";

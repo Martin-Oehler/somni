@@ -1,6 +1,5 @@
 <script lang="ts">
-  import type { DayBounds, EntryKind, Feeding, Session } from "../types";
-  import type { Projection } from "../projection";
+  import type { DayBounds, EntryKind, Feeding, PlannedBlock, Session } from "../types";
   import { HOUR_MS, fmtDur, fmtTime } from "../time";
   import { clock } from "../stores/clock.svelte";
 
@@ -8,7 +7,8 @@
     bounds,
     sessions,
     feedings,
-    projections = null,
+    planned = null,
+    bedtimeWarn = false,
     mini = false,
     onSelect = null,
     selectedId = null,
@@ -16,7 +16,8 @@
     bounds: DayBounds;
     sessions: Session[];
     feedings: Feeding[];
-    projections?: Projection[] | null;
+    planned?: PlannedBlock[] | null;
+    bedtimeWarn?: boolean;
     mini?: boolean;
     onSelect?: ((kind: EntryKind, id: string) => void) | null;
     selectedId?: string | null;
@@ -63,10 +64,13 @@
     return out;
   });
 
+  // Planned naps render as dashed "not real yet" blocks; the bedtime marker
+  // is drawn separately as the day's destination glyph.
   const projectionBlocks = $derived.by((): Block[] => {
-    if (!projections) return [];
+    if (!planned) return [];
     const out: Block[] = [];
-    for (const p of projections) {
+    for (const p of planned) {
+      if (p.kind !== "nap") continue;
       const start = Math.max(p.start, bounds.start);
       const end = Math.min(p.end, bounds.end);
       if (end <= bounds.start || start >= bounds.end) continue;
@@ -82,6 +86,12 @@
       });
     }
     return out;
+  });
+
+  const bedtimeMarker = $derived.by((): { left: number } | null => {
+    const bed = planned?.find((p) => p.kind === "bedtime");
+    if (!bed || bed.start <= bounds.start || bed.start >= bounds.end) return null;
+    return { left: pct(bed.start) };
   });
 
   const feedDots = $derived(
@@ -148,6 +158,12 @@
         <div class="tl-feed static" style:left="{f.left}%"></div>
       {/if}
     {/each}
+    {#if bedtimeMarker}
+      <div class="tl-bed" class:warn={bedtimeWarn} style:left="{bedtimeMarker.left}%" aria-hidden="true">
+        <span class="glyph">☾</span>
+        <span class="line"></span>
+      </div>
+    {/if}
     {#if nowPct !== null}
       <div class="tl-now" style:left="{nowPct}%"></div>
     {/if}
@@ -310,6 +326,35 @@
     width: 8px;
     height: 8px;
     border-width: 1.5px;
+  }
+  .tl-bed {
+    position: absolute;
+    top: -4px;
+    bottom: -2px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transform: translateX(-50%);
+    color: var(--m3c-primary);
+    pointer-events: none;
+    z-index: 3;
+  }
+  .tl-bed .glyph {
+    font-size: 11px;
+    line-height: 1;
+    margin-bottom: 1px;
+  }
+  .tl-bed .line {
+    flex: 1;
+    width: 0;
+    border-left: 2px dashed currentColor;
+    opacity: 0.7;
+  }
+  .tl-bed.warn {
+    color: var(--m3c-error);
+  }
+  .mini .tl-bed .glyph {
+    font-size: 9px;
   }
   .tl-now {
     position: absolute;

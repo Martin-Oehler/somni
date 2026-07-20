@@ -12,9 +12,13 @@ create table if not exists public.sessions (
   id uuid primary key,
   start_ts timestamptz not null,
   end_ts timestamptz,                       -- null = actively sleeping
+  settle_mins int,                          -- null = not annotated (assumed quick settle)
   updated_at timestamptz not null default now(),
   deleted_at timestamptz                    -- tombstone; soft delete
 );
+
+-- Idempotent upgrade for databases created before settle_mins existed.
+alter table public.sessions add column if not exists settle_mins int;
 
 create table if not exists public.feedings (
   id uuid primary key,
