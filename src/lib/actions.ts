@@ -6,7 +6,7 @@ import { data } from "./stores/data.svelte";
 import { settings } from "./stores/settings.svelte";
 import { sync } from "./stores/sync.svelte";
 import { outbox } from "./sync/outbox";
-import { supabase } from "./sync/supabase";
+import { fetchAllRows } from "./sync/paginate";
 import { saveLocalData, saveLocalSettings, saveColorScheme } from "./sync/local";
 import { applyColorScheme } from "./theme";
 import { buzz } from "./haptics";
@@ -139,11 +139,12 @@ export const applyImport = async (
   if (navigator.onLine) {
     try {
       const [ds, df] = await Promise.all([
-        supabase.from("sessions").select("id").not("deleted_at", "is", null).limit(50000),
-        supabase.from("feedings").select("id").not("deleted_at", "is", null).limit(50000),
+        fetchAllRows<{ id: string }>("sessions", "id", "tombstoned"),
+        fetchAllRows<{ id: string }>("feedings", "id", "tombstoned"),
       ]);
-      const deadS = new Set((ds.data ?? []).map((r) => r.id));
-      const deadF = new Set((df.data ?? []).map((r) => r.id));
+      if (ds.error || df.error) throw new Error(ds.error ?? df.error!);
+      const deadS = new Set(ds.rows.map((r) => r.id));
+      const deadF = new Set(df.rows.map((r) => r.id));
       sanitized.sessions = sanitized.sessions.filter((s) => !deadS.has(s.id));
       sanitized.feedings = sanitized.feedings.filter((f) => !deadF.has(f.id));
     } catch {

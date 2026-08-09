@@ -6,6 +6,7 @@ import { supabase } from "./supabase";
 import { outbox } from "./outbox";
 import { startRealtime } from "./realtime";
 import { rowToFeeding, rowToSession } from "./rows";
+import { fetchAllRows } from "./paginate";
 import { loadLocalData, loadLocalSettings, saveLocalData, saveLocalSettings } from "./local";
 import { data } from "../stores/data.svelte";
 import { settings } from "../stores/settings.svelte";
@@ -30,13 +31,19 @@ export const reconcile = async (reason: string): Promise<void> => {
   reconciling = true;
   sync.lastAttempt = Date.now();
   try {
+    // Paged reads — a single select is capped at db.max_rows (1000) and would
+    // silently drop everything past it, wiping those rows from the store below.
     const [sess, feeds, sharedRow] = await Promise.all([
-      supabase.from("sessions").select("id,start_ts,end_ts").is("deleted_at", null).limit(50000),
-      supabase.from("feedings").select("id,ts").is("deleted_at", null).limit(50000),
+      fetchAllRows<{ id: string; start_ts: string; end_ts: string | null }>(
+        "sessions",
+        "id,start_ts,end_ts",
+        "live",
+      ),
+      fetchAllRows<{ id: string; ts: string }>("feedings", "id,ts", "live"),
       supabase.from("shared_settings").select("value").eq("id", 1).maybeSingle(),
     ]);
     if (sess.error || feeds.error || sharedRow.error) {
-      const msg = (sess.error ?? feeds.error ?? sharedRow.error)!.message;
+      const msg = sess.error ?? feeds.error ?? sharedRow.error!.message;
       sync.status = "fail";
       sync.attemptsSinceSuccess++;
       sync.logEvent("err", `Sync failed (${reason})`, msg);
@@ -45,14 +52,14 @@ export const reconcile = async (reason: string): Promise<void> => {
 
     // Server state + pending local ops overlaid (local wins its own rows).
     const sessions = new Map<string, Session>(
-      (sess.data ?? []).map((r) => [r.id, rowToSession(r)] as const),
+      sess.rows.map((r) => [r.id, rowToSession(r)] as const),
     );
     for (const op of outbox.opsFor("sessions")) {
       if (op.op === "delete") sessions.delete(op.rowId);
       else sessions.set(op.rowId, op.row as Session);
     }
     const feedings = new Map<string, Feeding>(
-      (feeds.data ?? []).map((r) => [r.id, rowToFeeding(r)] as const),
+      feeds.rows.map((r) => [r.id, rowToFeeding(r)] as const),
     );
     for (const op of outbox.opsFor("feedings")) {
       if (op.op === "delete") feedings.delete(op.rowId);
