@@ -44,12 +44,37 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,svg,png,woff2}"],
-        navigateFallback: "index.html",
-        // Supabase API calls must NEVER be cached — stale API responses cause sync bugs.
+        // Page loads are network-first: a precached index.html outlives the deployment it came from,
+        // and once Vercel no longer serves the hashed bundles it references, a refresh renders a blank
+        // page. So the precache must not answer navigations ('/' would otherwise map to index.html)…
+        navigateFallback: null,
+        directoryIndex: null,
         runtimeCaching: [
+          // Supabase API calls must NEVER be cached — stale API responses cause sync bugs.
           {
             urlPattern: /^https:\/\/[^/]+\.supabase\.co\//,
             handler: "NetworkOnly",
+          },
+          // …instead, online loads always get the HTML of the live deployment. Offline (or a network
+          // slower than 3 s) falls back to the last page served, then to the precached shell.
+          {
+            urlPattern: ({ request }) => request.mode === "navigate",
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "somni-pages",
+              networkTimeoutSeconds: 3,
+              precacheFallback: { fallbackURL: "index.html" },
+            },
+          },
+          // Bundles referenced by a network-fetched page may be newer than this worker's precache;
+          // keep them so that page also works offline. Hashed filenames → safe to cache forever.
+          {
+            urlPattern: ({ url, sameOrigin }) => sameOrigin && url.pathname.startsWith("/assets/"),
+            handler: "CacheFirst",
+            options: {
+              cacheName: "somni-assets",
+              expiration: { maxEntries: 60 },
+            },
           },
         ],
       },
