@@ -29,6 +29,7 @@ export const bootFromCache = (): void => {
 export const reconcile = async (reason: string): Promise<void> => {
   if (reconciling || !navigator.onLine) return;
   reconciling = true;
+  sync.pulling = true;
   sync.lastAttempt = Date.now();
   try {
     // Paged reads — a single select is capped at db.max_rows (1000) and would
@@ -87,6 +88,7 @@ export const reconcile = async (reason: string): Promise<void> => {
     sync.logEvent("ok", `Synced (${reason})`, `${sessions.size} sessions, ${feedings.size} feedings`);
   } finally {
     reconciling = false;
+    sync.pulling = false;
   }
   await outbox.flush();
 };
