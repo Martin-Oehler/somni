@@ -7,8 +7,30 @@
   import { sync } from "../stores/sync.svelte";
   import { ui } from "../stores/ui.svelte";
 
+  // A pull in flight outranks ok/pending/fail: until it finishes, the data
+  // on screen is the local cache and may be out of date.
+  const displayStatus = $derived(
+    !sync.online ? "offline" : sync.pulling ? "syncing" : sync.status,
+  );
+
   const statusIcon = $derived(
-    !sync.online ? iconCloudOff : sync.status === "ok" ? iconCloudDone : sync.status === "pending" ? iconSync : iconSyncProblem,
+    displayStatus === "offline"
+      ? iconCloudOff
+      : displayStatus === "ok"
+        ? iconCloudDone
+        : displayStatus === "fail"
+          ? iconSyncProblem
+          : iconSync,
+  );
+
+  const statusLabel = $derived(
+    {
+      offline: "Offline",
+      syncing: "Syncing",
+      ok: "Synced",
+      pending: "Sync pending",
+      fail: "Sync failed",
+    }[displayStatus],
   );
 </script>
 
@@ -18,13 +40,17 @@
     <button
       type="button"
       class="sync-btn m3-layer"
-      data-status={sync.online ? sync.status : "offline"}
-      aria-label="Sync status"
+      data-status={displayStatus}
+      aria-label="Sync status: {statusLabel}"
+      aria-busy={displayStatus === "syncing"}
       onclick={() => ui.openSheet({ kind: "sync" })}
     >
       <Icon icon={statusIcon} size={22} />
     </button>
   </div>
+  {#if displayStatus === "syncing"}
+    <div class="pull-bar" role="progressbar" aria-label="Syncing latest data"></div>
+  {/if}
 </header>
 
 <style>
@@ -67,12 +93,40 @@
     color: var(--m3c-primary);
     animation: somni-pulse 1.4s infinite;
   }
+  .sync-btn[data-status="syncing"] {
+    color: var(--m3c-primary);
+  }
+  .sync-btn[data-status="syncing"] :global(svg) {
+    animation: somni-spin 1s linear infinite;
+  }
   .sync-btn[data-status="fail"] {
     color: var(--m3c-error);
   }
   .sync-btn[data-status="offline"] {
     color: var(--m3c-outline);
   }
+
+  /* Indeterminate bar pinned to the header's bottom edge, overlaying
+     content instead of shifting it. */
+  .pull-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    overflow: hidden;
+    background: var(--m3c-secondary-container);
+  }
+  .pull-bar::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    width: 40%;
+    border-radius: var(--m3-shape-full);
+    background: var(--m3c-primary);
+    animation: somni-slide 1.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  }
+
   @keyframes somni-pulse {
     0%,
     100% {
@@ -80,6 +134,30 @@
     }
     50% {
       opacity: 0.45;
+    }
+  }
+  @keyframes somni-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @keyframes somni-slide {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(250%);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sync-btn[data-status="syncing"] :global(svg) {
+      animation: none;
+    }
+    .pull-bar::before {
+      animation: none;
+      width: 100%;
+      opacity: 0.6;
     }
   }
 </style>

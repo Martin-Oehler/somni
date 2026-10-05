@@ -8,6 +8,9 @@ class SyncStore {
   status = $state<SyncStatus>("ok");
   online = $state(typeof navigator === "undefined" ? true : navigator.onLine);
   realtimeConnected = $state(false);
+  // True while reconcile() is pulling server state — the cached data on
+  // screen may be stale until it finishes (e.g. after resuming the app).
+  pulling = $state(false);
   outboxDepth = $state(0);
   lastAttempt = $state<number | null>(null);
   lastSuccess = $state<number | null>(null);

@@ -7,7 +7,9 @@
   const statusText = $derived(
     !sync.online
       ? "Offline — changes queue locally"
-      : sync.status === "ok"
+      : sync.pulling
+        ? "Syncing latest data…"
+        : sync.status === "ok"
         ? "Synced"
         : sync.status === "pending"
           ? "Sync pending"
@@ -19,7 +21,7 @@
 
 <div class="sheet-body">
   <h2 class="sheet-title">Sync</h2>
-  <p class="status" data-status={sync.online ? sync.status : "offline"}>{statusText}</p>
+  <p class="status" data-status={!sync.online ? "offline" : sync.pulling ? "syncing" : sync.status}>{statusText}</p>
   <div class="rows">
     <div class="row"><span>Realtime</span><span>{sync.realtimeConnected ? "connected" : "off"}</span></div>
     <div class="row"><span>Queued writes</span><span>{sync.outboxDepth}</span></div>
@@ -28,7 +30,9 @@
     <div class="row"><span>Attempts since success</span><span>{sync.attemptsSinceSuccess || "—"}</span></div>
   </div>
   <div class="sheet-actions">
-    <Button variant="tonal" onclick={() => void reconcile("manual")}>Sync now</Button>
+    <Button variant="tonal" disabled={sync.pulling} onclick={() => void reconcile("manual")}>
+      {sync.pulling ? "Syncing…" : "Sync now"}
+    </Button>
     <Button variant="text" onclick={() => (showLog = !showLog)}>
       {showLog ? "Hide log" : "Show log"}
     </Button>
@@ -59,7 +63,8 @@
     text-align: center;
     font-weight: 600;
   }
-  .status[data-status="ok"] {
+  .status[data-status="ok"],
+  .status[data-status="syncing"] {
     color: var(--m3c-primary);
   }
   .status[data-status="pending"],
