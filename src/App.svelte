@@ -26,6 +26,13 @@
   let booted = $state(false);
   let syncStarted = false;
 
+  // m3-svelte's Snackbar sits at the very bottom (z-index 3), i.e. underneath our fixed bottom
+  // bars, which made its actions untappable. --m3v-bottom-offset is its hook to lift it above them.
+  let bottomBarsHeight = $state(0);
+  $effect(() => {
+    document.documentElement.style.setProperty("--m3v-bottom-offset", `${bottomBarsHeight}px`);
+  });
+
   $effect(() => {
     if (booted) return;
     booted = true;
@@ -96,7 +103,7 @@
       <Settings />
     {/if}
   </main>
-  <div class="bottom-bars">
+  <div class="bottom-bars" bind:offsetHeight={bottomBarsHeight}>
     {#if ui.screen === "home"}
       <ActionBar />
     {/if}

@@ -9,6 +9,63 @@
     <link rel="icon" href="/icon-192.png" type="image/png" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <title>Somni</title>
+    <!--
+      Self-repair: if an app bundle fails to load (e.g. a stale cached page pointing at bundles a
+      newer deployment removed), drop the service worker and caches and reload once. Data in
+      localStorage (login, local cache, pending writes) is left alone. Must stay inline and run
+      before the bundle so it also works when nothing else can load.
+    -->
+    <script>
+      (function () {
+        var KEY = "somni_selfheal_at";
+        var healing = false;
+        function heal(reason) {
+          if (healing) return;
+          try {
+            var last = Number(sessionStorage.getItem(KEY) || 0);
+            if (Date.now() - last < 60000) return; // at most once a minute: no reload loops
+            sessionStorage.setItem(KEY, String(Date.now()));
+          } catch (e) {
+            return; // can't guard against loops without storage, so don't try
+          }
+          healing = true;
+          console.warn("Somni: app failed to load (" + reason + "), clearing caches and reloading");
+          var jobs = [];
+          if (navigator.serviceWorker) {
+            jobs.push(
+              navigator.serviceWorker.getRegistrations().then(function (regs) {
+                return Promise.all(regs.map(function (r) { return r.unregister(); }));
+              }),
+            );
+          }
+          if (window.caches) {
+            jobs.push(
+              caches.keys().then(function (keys) {
+                return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+              }),
+            );
+          }
+          Promise.all(jobs).catch(function () {}).then(function () { location.reload(); });
+        }
+        // Resource load errors don't bubble; catch them on the way down.
+        window.addEventListener(
+          "error",
+          function (e) {
+            var t = e.target;
+            var src = t && (t.src || t.href);
+            if (src && (t.tagName === "SCRIPT" || t.tagName === "LINK") && src.indexOf("/assets/") !== -1) {
+              heal(src);
+            }
+          },
+          true,
+        );
+        // Vite's signal for a failed lazy chunk / modulepreload.
+        window.addEventListener("vite:preloadError", function (e) {
+          e.preventDefault();
+          heal("preload");
+        });
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>
