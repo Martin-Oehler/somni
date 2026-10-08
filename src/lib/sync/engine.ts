@@ -7,6 +7,7 @@ import { outbox } from "./outbox";
 import { startRealtime } from "./realtime";
 import { rowToFeeding, rowToSession } from "./rows";
 import { fetchAllRows } from "./paginate";
+import { mergePull } from "./merge";
 import { loadLocalData, loadLocalSettings, saveLocalData, saveLocalSettings } from "./local";
 import { data } from "../stores/data.svelte";
 import { settings } from "../stores/settings.svelte";
@@ -31,6 +32,11 @@ export const reconcile = async (reason: string): Promise<void> => {
   reconciling = true;
   sync.pulling = true;
   sync.lastAttempt = Date.now();
+  // The pull below is a snapshot from when it was requested; anything that
+  // changes the store before it lands (a nap started mid-sync, a realtime
+  // push) is newer and must survive the merge.
+  data.trackChanges();
+  const settingsAtStart = settings.shared;
   try {
     // Paged reads — a single select is capped at db.max_rows (1000) and would
     // silently drop everything past it, wiping those rows from the store below.
@@ -51,25 +57,25 @@ export const reconcile = async (reason: string): Promise<void> => {
       return;
     }
 
-    // Server state + pending local ops overlaid (local wins its own rows).
-    const sessions = new Map<string, Session>(
-      sess.rows.map((r) => [r.id, rowToSession(r)] as const),
+    // Server state, overlaid by pending local ops and mid-pull changes.
+    const touched = data.takeChanges();
+    const sessions = mergePull<Session>(
+      sess.rows.map(rowToSession),
+      outbox.opsFor("sessions"),
+      touched.sessions,
+      data.sessions,
     );
-    for (const op of outbox.opsFor("sessions")) {
-      if (op.op === "delete") sessions.delete(op.rowId);
-      else sessions.set(op.rowId, op.row as Session);
-    }
-    const feedings = new Map<string, Feeding>(
-      feeds.rows.map((r) => [r.id, rowToFeeding(r)] as const),
+    const feedings = mergePull<Feeding>(
+      feeds.rows.map(rowToFeeding),
+      outbox.opsFor("feedings"),
+      touched.feedings,
+      data.feedings,
     );
-    for (const op of outbox.opsFor("feedings")) {
-      if (op.op === "delete") feedings.delete(op.rowId);
-      else feedings.set(op.rowId, op.row as Feeding);
-    }
-    data.replaceAll([...sessions.values()], [...feedings.values()]);
+    data.replaceAll(sessions, feedings);
     saveLocalData(data.snapshot);
 
-    if (sharedRow.data && !outbox.hasPending("shared_settings", "1")) {
+    const settingsChanged = settings.shared !== settingsAtStart;
+    if (sharedRow.data && !settingsChanged && !outbox.hasPending("shared_settings", "1")) {
       settings.shared = { ...settings.shared, ...normalizeSettings(sharedRow.data.value) };
       saveLocalSettings(settings.shared);
     } else if (!sharedRow.data) {
@@ -85,8 +91,9 @@ export const reconcile = async (reason: string): Promise<void> => {
     sync.lastSuccess = Date.now();
     sync.attemptsSinceSuccess = 0;
     if (!outbox.depth) sync.status = "ok";
-    sync.logEvent("ok", `Synced (${reason})`, `${sessions.size} sessions, ${feedings.size} feedings`);
+    sync.logEvent("ok", `Synced (${reason})`, `${sessions.length} sessions, ${feedings.length} feedings`);
   } finally {
+    data.takeChanges(); // stop tracking on the error path too
     reconciling = false;
     sync.pulling = false;
   }
