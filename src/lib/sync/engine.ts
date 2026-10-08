@@ -7,6 +7,7 @@ import { outbox } from "./outbox";
 import { startRealtime } from "./realtime";
 import { rowToFeeding, rowToSession } from "./rows";
 import { fetchAllRows } from "./paginate";
+import { withRetry } from "./retry";
 import { mergePull } from "./merge";
 import { loadLocalData, loadLocalSettings, saveLocalData, saveLocalSettings } from "./local";
 import { data } from "../stores/data.svelte";
@@ -17,20 +18,14 @@ import type { Feeding, Session, SharedSettings } from "../types";
 
 const RETRY_INTERVAL_MS = 15_000; // when the outbox is non-empty, a write failed, or a pull failed
 const IDLE_RECONCILE_MS = 120_000; // safety net under realtime
-// Pull failures are usually transient (a dropped connection on resume, a
-// flaky mobile network) and an immediate retry tends to succeed, so retry
-// a few times quickly before surfacing "Sync failed".
-const PULL_RETRY_DELAYS_MS = [300, 700, 1_500, 3_000];
 
 let reconciling = false;
 let lastPullFailed = false;
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-const pullServerState = async () => {
-  // Paged reads — a single select is capped at db.max_rows (1000) and would
-  // silently drop everything past it, wiping those rows from the store below.
-  const [sess, feeds, sharedRow] = await Promise.all([
+// Paged reads — a single select is capped at db.max_rows (1000) and would
+// silently drop everything past it, wiping those rows from the store below.
+const pullServerState = () =>
+  Promise.all([
     fetchAllRows<{ id: string; start_ts: string; end_ts: string | null }>(
       "sessions",
       "id,start_ts,end_ts",
@@ -39,23 +34,6 @@ const pullServerState = async () => {
     fetchAllRows<{ id: string; ts: string }>("feedings", "id,ts", "live"),
     supabase.from("shared_settings").select("value").eq("id", 1).maybeSingle(),
   ]);
-  const error = sess.error ?? feeds.error ?? sharedRow.error?.message ?? null;
-  return { sess, feeds, sharedRow, error };
-};
-
-const pullWithRetry = async (reason: string) => {
-  for (let attempt = 0; ; attempt++) {
-    let pulled: Awaited<ReturnType<typeof pullServerState>>;
-    try {
-      pulled = await pullServerState();
-    } catch (e) {
-      pulled = { error: e instanceof Error ? e.message : String(e) } as typeof pulled;
-    }
-    if (!pulled.error || attempt >= PULL_RETRY_DELAYS_MS.length || !navigator.onLine) return pulled;
-    sync.logEvent("warn", `Sync retry ${attempt + 1} (${reason})`, pulled.error);
-    await sleep(PULL_RETRY_DELAYS_MS[attempt]);
-  }
-};
 
 export const bootFromCache = (): void => {
   const local = loadLocalData();
@@ -75,7 +53,15 @@ export const reconcile = async (reason: string): Promise<void> => {
   data.trackChanges();
   const settingsAtStart = settings.shared;
   try {
-    const { sess, feeds, sharedRow, error } = await pullWithRetry(reason);
+    let pulled!: Awaited<ReturnType<typeof pullServerState>>;
+    const error = await withRetry(
+      async () => {
+        pulled = await pullServerState();
+        const [sess, feeds, sharedRow] = pulled;
+        return sess.error ?? feeds.error ?? sharedRow.error?.message ?? null;
+      },
+      (n, err) => sync.logEvent("warn", `Sync retry ${n} (${reason})`, err),
+    );
     lastPullFailed = !!error;
     if (error) {
       sync.status = "fail";
@@ -83,6 +69,7 @@ export const reconcile = async (reason: string): Promise<void> => {
       sync.logEvent("err", `Sync failed (${reason})`, error);
       return;
     }
+    const [sess, feeds, sharedRow] = pulled;
 
     // Server state, overlaid by pending local ops and mid-pull changes.
     const touched = data.takeChanges();

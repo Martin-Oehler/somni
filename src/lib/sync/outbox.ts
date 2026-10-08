@@ -6,6 +6,7 @@
 import type { OutboxOp, TableName } from "../types";
 import { supabase } from "./supabase";
 import { toDbRow } from "./rows";
+import { withRetry } from "./retry";
 import { loadOutbox, saveOutbox } from "./local";
 import { sync } from "../stores/sync.svelte";
 
@@ -67,10 +68,13 @@ class Outbox {
       sync.attemptsSinceSuccess++;
       const row = toDbRow(op.table, op.row, op.op === "delete");
       // Untyped client + dynamic table name: the row shape is guaranteed by toDbRow.
-      const { error } = await supabase.from(op.table).upsert(row as never);
+      const error = await withRetry(
+        async () => (await supabase.from(op.table).upsert(row as never)).error?.message ?? null,
+        (n, err) => sync.logEvent("warn", `Write retry ${n} (${op.table})`, `${op.op} ${op.rowId} — ${err}`),
+      );
       if (error) {
         sync.status = navigator.onLine ? "fail" : "pending";
-        sync.logEvent("err", `Write failed (${op.table})`, `${op.op} ${op.rowId} — ${error.message}`);
+        sync.logEvent("err", `Write failed (${op.table})`, `${op.op} ${op.rowId} — ${error}`);
         return; // keep the op; scheduler/reconnect retries
       }
       this.ops.shift();
