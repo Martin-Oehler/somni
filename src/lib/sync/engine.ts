@@ -7,6 +7,7 @@ import { outbox } from "./outbox";
 import { startRealtime } from "./realtime";
 import { rowToFeeding, rowToSession } from "./rows";
 import { fetchAllRows } from "./paginate";
+import { withRetry } from "./retry";
 import { mergePull } from "./merge";
 import { loadLocalData, loadLocalSettings, saveLocalData, saveLocalSettings } from "./local";
 import { data } from "../stores/data.svelte";
@@ -15,10 +16,24 @@ import { sync } from "../stores/sync.svelte";
 import { normalizeSettings } from "../settingsSchema";
 import type { Feeding, Session, SharedSettings } from "../types";
 
-const RETRY_INTERVAL_MS = 15_000; // when the outbox is non-empty or a write failed
+const RETRY_INTERVAL_MS = 15_000; // when the outbox is non-empty, a write failed, or a pull failed
 const IDLE_RECONCILE_MS = 120_000; // safety net under realtime
 
 let reconciling = false;
+let lastPullFailed = false;
+
+// Paged reads — a single select is capped at db.max_rows (1000) and would
+// silently drop everything past it, wiping those rows from the store below.
+const pullServerState = () =>
+  Promise.all([
+    fetchAllRows<{ id: string; start_ts: string; end_ts: string | null }>(
+      "sessions",
+      "id,start_ts,end_ts",
+      "live",
+    ),
+    fetchAllRows<{ id: string; ts: string }>("feedings", "id,ts", "live"),
+    supabase.from("shared_settings").select("value").eq("id", 1).maybeSingle(),
+  ]);
 
 export const bootFromCache = (): void => {
   const local = loadLocalData();
@@ -38,24 +53,23 @@ export const reconcile = async (reason: string): Promise<void> => {
   data.trackChanges();
   const settingsAtStart = settings.shared;
   try {
-    // Paged reads — a single select is capped at db.max_rows (1000) and would
-    // silently drop everything past it, wiping those rows from the store below.
-    const [sess, feeds, sharedRow] = await Promise.all([
-      fetchAllRows<{ id: string; start_ts: string; end_ts: string | null }>(
-        "sessions",
-        "id,start_ts,end_ts",
-        "live",
-      ),
-      fetchAllRows<{ id: string; ts: string }>("feedings", "id,ts", "live"),
-      supabase.from("shared_settings").select("value").eq("id", 1).maybeSingle(),
-    ]);
-    if (sess.error || feeds.error || sharedRow.error) {
-      const msg = sess.error ?? feeds.error ?? sharedRow.error!.message;
+    let pulled!: Awaited<ReturnType<typeof pullServerState>>;
+    const error = await withRetry(
+      async () => {
+        pulled = await pullServerState();
+        const [sess, feeds, sharedRow] = pulled;
+        return sess.error ?? feeds.error ?? sharedRow.error?.message ?? null;
+      },
+      (n, err) => sync.logEvent("warn", `Sync retry ${n} (${reason})`, err),
+    );
+    lastPullFailed = !!error;
+    if (error) {
       sync.status = "fail";
       sync.attemptsSinceSuccess++;
-      sync.logEvent("err", `Sync failed (${reason})`, msg);
+      sync.logEvent("err", `Sync failed (${reason})`, error);
       return;
     }
+    const [sess, feeds, sharedRow] = pulled;
 
     // Server state, overlaid by pending local ops and mid-pull changes.
     const touched = data.takeChanges();
@@ -118,7 +132,9 @@ export const startSync = (): void => {
   });
 
   setInterval(() => {
-    if (outbox.depth > 0 || sync.status === "fail") void outbox.flush();
+    // A failed pull would otherwise wait for the slow idle reconcile.
+    if (lastPullFailed) void reconcile("retry");
+    else if (outbox.depth > 0 || sync.status === "fail") void outbox.flush();
   }, RETRY_INTERVAL_MS);
   setInterval(() => void reconcile("scheduled"), IDLE_RECONCILE_MS);
 
