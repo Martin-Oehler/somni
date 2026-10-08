@@ -15,10 +15,47 @@ import { sync } from "../stores/sync.svelte";
 import { normalizeSettings } from "../settingsSchema";
 import type { Feeding, Session, SharedSettings } from "../types";
 
-const RETRY_INTERVAL_MS = 15_000; // when the outbox is non-empty or a write failed
+const RETRY_INTERVAL_MS = 15_000; // when the outbox is non-empty, a write failed, or a pull failed
 const IDLE_RECONCILE_MS = 120_000; // safety net under realtime
+// Pull failures are usually transient (a dropped connection on resume, a
+// flaky mobile network) and an immediate retry tends to succeed, so retry
+// a few times quickly before surfacing "Sync failed".
+const PULL_RETRY_DELAYS_MS = [300, 700, 1_500, 3_000];
 
 let reconciling = false;
+let lastPullFailed = false;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+const pullServerState = async () => {
+  // Paged reads — a single select is capped at db.max_rows (1000) and would
+  // silently drop everything past it, wiping those rows from the store below.
+  const [sess, feeds, sharedRow] = await Promise.all([
+    fetchAllRows<{ id: string; start_ts: string; end_ts: string | null }>(
+      "sessions",
+      "id,start_ts,end_ts",
+      "live",
+    ),
+    fetchAllRows<{ id: string; ts: string }>("feedings", "id,ts", "live"),
+    supabase.from("shared_settings").select("value").eq("id", 1).maybeSingle(),
+  ]);
+  const error = sess.error ?? feeds.error ?? sharedRow.error?.message ?? null;
+  return { sess, feeds, sharedRow, error };
+};
+
+const pullWithRetry = async (reason: string) => {
+  for (let attempt = 0; ; attempt++) {
+    let pulled: Awaited<ReturnType<typeof pullServerState>>;
+    try {
+      pulled = await pullServerState();
+    } catch (e) {
+      pulled = { error: e instanceof Error ? e.message : String(e) } as typeof pulled;
+    }
+    if (!pulled.error || attempt >= PULL_RETRY_DELAYS_MS.length || !navigator.onLine) return pulled;
+    sync.logEvent("warn", `Sync retry ${attempt + 1} (${reason})`, pulled.error);
+    await sleep(PULL_RETRY_DELAYS_MS[attempt]);
+  }
+};
 
 export const bootFromCache = (): void => {
   const local = loadLocalData();
@@ -38,22 +75,12 @@ export const reconcile = async (reason: string): Promise<void> => {
   data.trackChanges();
   const settingsAtStart = settings.shared;
   try {
-    // Paged reads — a single select is capped at db.max_rows (1000) and would
-    // silently drop everything past it, wiping those rows from the store below.
-    const [sess, feeds, sharedRow] = await Promise.all([
-      fetchAllRows<{ id: string; start_ts: string; end_ts: string | null }>(
-        "sessions",
-        "id,start_ts,end_ts",
-        "live",
-      ),
-      fetchAllRows<{ id: string; ts: string }>("feedings", "id,ts", "live"),
-      supabase.from("shared_settings").select("value").eq("id", 1).maybeSingle(),
-    ]);
-    if (sess.error || feeds.error || sharedRow.error) {
-      const msg = sess.error ?? feeds.error ?? sharedRow.error!.message;
+    const { sess, feeds, sharedRow, error } = await pullWithRetry(reason);
+    lastPullFailed = !!error;
+    if (error) {
       sync.status = "fail";
       sync.attemptsSinceSuccess++;
-      sync.logEvent("err", `Sync failed (${reason})`, msg);
+      sync.logEvent("err", `Sync failed (${reason})`, error);
       return;
     }
 
@@ -118,7 +145,9 @@ export const startSync = (): void => {
   });
 
   setInterval(() => {
-    if (outbox.depth > 0 || sync.status === "fail") void outbox.flush();
+    // A failed pull would otherwise wait for the slow idle reconcile.
+    if (lastPullFailed) void reconcile("retry");
+    else if (outbox.depth > 0 || sync.status === "fail") void outbox.flush();
   }, RETRY_INTERVAL_MS);
   setInterval(() => void reconcile("scheduled"), IDLE_RECONCILE_MS);
 
