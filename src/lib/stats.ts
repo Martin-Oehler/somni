@@ -1,7 +1,7 @@
 // Statistics for the Trends screen, ported from the prototype's render():
 // 7-day summary distributions, per-day history rows, and the sleep heatmap.
 import type { DayBounds, Feeding, Session } from "./types";
-import { DAY_MS, MIN_MS, dayKey } from "./time";
+import { addDays, dayKey } from "./time";
 
 export const percentile = (arr: number[], p: number): number => {
   if (!arr.length) return 0;
@@ -26,7 +26,7 @@ export const computeSummary = (
   dayStart: number,
   todayStart: number,
 ): SummaryStat[] => {
-  const winStart = todayStart - 7 * DAY_MS;
+  const winStart = addDays(todayStart, -7);
   const completedInWin = sessions
     .filter((s): s is Session & { end: number } => s.end !== null && s.end > winStart)
     .sort((a, b) => a.start - b.start);
@@ -49,7 +49,7 @@ export const computeSummary = (
   const dayTotals: number[] = [];
   const dayAwakeTotals: number[] = [];
   for (let i = 1; i <= 7; i++) {
-    const b = { start: todayStart - i * DAY_MS, end: todayStart - (i - 1) * DAY_MS };
+    const b = { start: addDays(todayStart, -i), end: addDays(todayStart, -(i - 1)) };
     let dt = 0;
     for (const s of sessions) {
       if (s.end === null) continue;
@@ -58,7 +58,7 @@ export const computeSummary = (
     }
     if (dt > 0) {
       dayTotals.push(dt);
-      dayAwakeTotals.push(Math.max(0, DAY_MS - dt));
+      dayAwakeTotals.push(Math.max(0, b.end - b.start - dt));
     }
   }
 
@@ -88,7 +88,7 @@ export const computeHistory = (
 ): HistoryDay[] => {
   const out: HistoryDay[] = [];
   for (let i = 1; i <= days; i++) {
-    const b = { start: todayStart - i * DAY_MS, end: todayStart - (i - 1) * DAY_MS };
+    const b = { start: addDays(todayStart, -i), end: addDays(todayStart, -(i - 1)) };
     const daySessions = sessions.filter((s) => (s.end ?? now) > b.start && s.start < b.end);
     const dayFeedings = feedings.filter((f) => f.ts >= b.start && f.ts < b.end);
     if (!daySessions.length && !dayFeedings.length) continue;
@@ -128,17 +128,16 @@ export const computeHeatmap = (
   maxWeeks = 12,
 ): HeatmapWeek[] => {
   if (!sessions.length) return [];
-  const slotMs = slotMins * MIN_MS;
   const slots = Math.round(1440 / slotMins);
 
   const weeks: { start: number; end: number }[] = [];
   let ws = todayWeekStart;
   const earliest = Math.min(...sessions.map((s) => s.start));
   for (let w = 0; w < maxWeeks; w++) {
-    const we = ws + 7 * DAY_MS;
+    const we = addDays(ws, 7);
     if (sessions.some((s) => (s.end ?? now) > ws && s.start < we)) weeks.unshift({ start: ws, end: we });
-    ws -= 7 * DAY_MS;
-    if (ws + 7 * DAY_MS < earliest) break;
+    ws = addDays(ws, -7);
+    if (addDays(ws, 7) < earliest) break;
   }
 
   return weeks.map((week) => {
@@ -146,14 +145,19 @@ export const computeHeatmap = (
     const trackedDays = new Array<number>(slots).fill(0);
     let dayCount = 0;
     for (let d = 0; d < 7; d++) {
-      const ds = week.start + d * DAY_MS;
-      if (ds + DAY_MS > now) continue; // skip incomplete (today)
-      const segs = sessions.filter((s) => (s.end ?? now) > ds && s.start < ds + DAY_MS);
+      const ds = addDays(week.start, d);
+      const de = addDays(ds, 1);
+      if (de > now) continue; // skip incomplete (today)
+      const segs = sessions.filter((s) => (s.end ?? now) > ds && s.start < de);
+      // Slots are wall-clock anchored so they stay aligned on DST days.
+      const base = new Date(ds);
+      const slotTs = (sl: number): number =>
+        new Date(base.getFullYear(), base.getMonth(), base.getDate(), base.getHours(), sl * slotMins).getTime();
       if (!segs.length) continue;
       dayCount++;
       for (let sl = 0; sl < slots; sl++) {
-        const ss = ds + sl * slotMs;
-        const se = ss + slotMs;
+        const ss = slotTs(sl);
+        const se = slotTs(sl + 1);
         trackedDays[sl]++;
         if (segs.some((s) => s.start < se && (s.end ?? now) > ss)) counts[sl]++;
       }

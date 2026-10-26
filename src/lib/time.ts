@@ -38,17 +38,27 @@ export const clampInt = (raw: unknown, min: number, max: number, fallback: numbe
   return Math.min(max, Math.max(min, v));
 };
 
-// Note: "days" are dayStart-anchored and assumed 24h long; on DST-transition
-// days boundaries drift by 1h. Accepted limitation (carried over from prototype).
+// "Days" are dayStart-anchored in local wall-clock time, so on DST-transition
+// days they are 23h or 25h long. Never step between days by adding DAY_MS —
+// use addDays, which keeps the wall-clock time.
+export const addDays = (ts: number, n: number): number => {
+  const d = new Date(ts);
+  d.setDate(d.getDate() + n);
+  return d.getTime();
+};
+
 export const dayKey = (ts: number, dayStartHour: number): string => {
-  const d = new Date(ts - dayStartHour * HOUR_MS);
+  const d = new Date(ts);
+  if (d.getHours() < dayStartHour) d.setDate(d.getDate() - 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
 export const dayBounds = (key: string, dayStartHour: number): DayBounds => {
   const [y, mo, d] = key.split("-").map(Number);
-  const start = new Date(y, mo - 1, d).getTime() + dayStartHour * HOUR_MS;
-  return { start, end: start + DAY_MS };
+  return {
+    start: new Date(y, mo - 1, d, dayStartHour).getTime(),
+    end: new Date(y, mo - 1, d + 1, dayStartHour).getTime(),
+  };
 };
 
 export const boundsForDay = (ts: number, dayStartHour: number): DayBounds =>
@@ -59,5 +69,5 @@ export const weekStart = (ts: number, dayStartHour: number): number => {
   const { start } = boundsForDay(ts, dayStartHour);
   const wd = new Date(start).getDay();
   const diff = wd === 0 ? -6 : 1 - wd;
-  return start + diff * DAY_MS;
+  return addDays(start, diff);
 };

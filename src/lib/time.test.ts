@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { DAY_MS, HOUR_MS, clampInt, compactDur, dayBounds, dayKey, fmtDur, weekStart } from "./time";
+import {
+  DAY_MS,
+  HOUR_MS,
+  addDays,
+  boundsForDay,
+  clampInt,
+  compactDur,
+  dayBounds,
+  dayKey,
+  fmtDur,
+  weekStart,
+} from "./time";
 
 // A fixed local reference: 2026-07-10 12:00 local time.
 const NOON = new Date(2026, 6, 10, 12, 0).getTime();
@@ -69,5 +80,50 @@ describe("weekStart", () => {
 describe("HOUR_MS sanity", () => {
   it("constants line up", () => {
     expect(DAY_MS).toBe(24 * HOUR_MS);
+  });
+});
+
+// Vitest pins TZ=Europe/Berlin (vite.config.ts) so these hit real DST
+// transitions: 2026-03-29 (23h day) and 2026-10-25 (25h day).
+describe("DST transitions", () => {
+  const sweep = (from: Date, hours: number, dayStart: number) => {
+    for (let h = 0; h < hours; h++) {
+      const ts = from.getTime() + h * HOUR_MS;
+      const b = boundsForDay(ts, dayStart);
+      expect(ts).toBeGreaterThanOrEqual(b.start);
+      expect(ts).toBeLessThan(b.end);
+      expect(new Date(b.start).getHours()).toBe(dayStart);
+      expect(new Date(b.end).getHours()).toBe(dayStart);
+    }
+  };
+
+  it("keeps every timestamp inside its own day around fall-back", () => {
+    for (const ds of [0, 6, 7, 8, 20]) sweep(new Date(2026, 9, 23, 0), 120, ds);
+  });
+  it("keeps every timestamp inside its own day around spring-forward", () => {
+    for (const ds of [0, 6, 7, 8, 20]) sweep(new Date(2026, 2, 27, 0), 120, ds);
+  });
+  it("morning after fall-back belongs to the new day (dayStart 8)", () => {
+    const b = boundsForDay(new Date(2026, 9, 26, 7, 52).getTime(), 8);
+    expect(b.start).toBe(new Date(2026, 9, 25, 8).getTime());
+    expect(b.end).toBe(new Date(2026, 9, 26, 8).getTime());
+  });
+  it("transition days are 25h / 23h long", () => {
+    const fall = dayBounds("2026-10-24", 6); // spans the 03:00 switch on the 25th
+    const spring = dayBounds("2026-03-28", 6);
+    expect(fall.end - fall.start).toBe(25 * HOUR_MS);
+    expect(spring.end - spring.start).toBe(23 * HOUR_MS);
+  });
+  it("addDays keeps wall-clock time across DST", () => {
+    const sat = new Date(2026, 9, 24, 6).getTime();
+    expect(new Date(addDays(sat, 1)).getHours()).toBe(6);
+    expect(new Date(addDays(sat, 7)).getHours()).toBe(6);
+    expect(new Date(addDays(addDays(sat, 7), -7)).getTime()).toBe(sat);
+  });
+  it("weekStart over a DST week is Monday at dayStart", () => {
+    const ws = weekStart(new Date(2026, 9, 25, 12).getTime(), 6); // Sunday after fall-back
+    expect(new Date(ws).getDay()).toBe(1);
+    expect(new Date(ws).getHours()).toBe(6);
+    expect(ws).toBe(new Date(2026, 9, 19, 6).getTime());
   });
 });
