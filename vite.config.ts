@@ -83,5 +83,7 @@ export default defineConfig({
   test: {
     include: ["src/**/*.test.ts"],
     environment: "node",
+    // A DST-observing zone, so day-boundary tests exercise real transitions.
+    env: { TZ: "Europe/Berlin" },
   },
 });
